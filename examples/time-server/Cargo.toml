@@ -1,0 +1,18 @@
+[package]
+name = "time-server"
+version = "0.1.0"
+authors = ["4lDO2 <4lDO2@protonmail.com>"]
+edition = "2018"
+
+[[example]]
+name = "client"
+path = "src/client.rs"
+
+[[example]]
+name = "server"
+path = "src/server.rs"
+
+[dependencies]
+tcp-channel = { path = "../..", version = "0.1.0" }
+serde = "1.0.89"
+serde_derive = "1.0.89"

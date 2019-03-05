@@ -1,0 +1,49 @@
+use std::io::Write;
+use std::marker::PhantomData;
+use std::net::{TcpStream, ToSocketAddrs};
+
+use byteorder::{BigEndian, WriteBytesExt};
+use serde::Serialize;
+
+pub struct Sender<T> {
+    stream: TcpStream,
+    _marker: PhantomData<T>,
+}
+
+#[derive(Debug)]
+pub enum SendError {
+    Disconnected,
+    BincodeError(bincode::Error),
+    IoError(std::io::Error),
+}
+
+impl From<bincode::Error> for SendError {
+    fn from(error: bincode::Error) -> Self {
+        SendError::BincodeError(error)
+    }
+}
+
+impl From<std::io::Error> for SendError {
+    fn from(error: std::io::Error) -> Self {
+        SendError::IoError(error)
+    }
+}
+
+impl<T: Serialize> Sender<T> {
+    pub fn connect<A: ToSocketAddrs>(address: A) -> std::io::Result<Self> {
+        Ok(Self::new(TcpStream::connect(address)?))
+    }
+    pub fn new(stream: TcpStream) -> Self {
+        Self {
+            stream,
+            _marker: PhantomData,
+        }
+    }
+    pub fn send(&mut self, value: &T) -> Result<(), SendError> {
+        let bytes = bincode::serialize(value)?;
+        self.stream.write_u64::<BigEndian>(bytes.len() as u64)?;
+        self.stream.write(&bytes)?;
+
+        Ok(())
+    }
+}
