@@ -6,6 +6,5 @@ pub(crate) enum ClientToServer {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) enum ServerToClient {
-    Okay,
-    No
+    Answer(String),
 }
