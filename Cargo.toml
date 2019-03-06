@@ -3,6 +3,11 @@ name = "tcp-channel"
 version = "0.1.0"
 authors = ["4lDO2 <4lDO2@protonmail.com>"]
 edition = "2018"
+description = "SPSC channels, working on everything that implements Read and Write"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/4lDO2/tcp-channel"
+keywords = ["spsc", "channel"]
 
 [dependencies]
 bincode = "1.1.2"
