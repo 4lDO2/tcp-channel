@@ -1,3 +1,6 @@
+//! SPSC channels in Rust, transmitted through anything that implements Read.
+//! It uses bincode and serde for serialization and deserialization.
+
 extern crate bincode;
 extern crate byteorder;
 extern crate serde;
