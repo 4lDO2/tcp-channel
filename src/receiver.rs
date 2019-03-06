@@ -1,12 +1,12 @@
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::net::TcpStream;
 use std::marker::PhantomData;
 
 use byteorder::{BigEndian, ReadBytesExt};
 use serde::de::DeserializeOwned;
 
-pub struct Receiver<T> {
-    stream: TcpStream,
+pub struct Receiver<T, R: Read = BufReader<TcpStream>> {
+    reader: R,
     _marker: PhantomData<T>,
 }
 
@@ -29,17 +29,20 @@ impl From<std::io::Error> for RecvError {
 }
 
 impl<T: DeserializeOwned> Receiver<T> {
-    pub fn new(stream: TcpStream) -> Self {
-        Self {
-            stream,
+    pub fn new<R: Read>(reader: R) -> Receiver<T, R> {
+        Receiver {
+            reader,
             _marker: PhantomData,
         }
     }
+}
+
+impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
     pub fn recv(&mut self) -> Result<T, RecvError> {
-        let length = self.stream.read_u64::<BigEndian>()? as usize;
+        let length = self.reader.read_u64::<BigEndian>()? as usize;
 
         let mut buffer = vec! [0; length];
-        self.stream.read_exact(&mut buffer)?;
+        self.reader.read_exact(&mut buffer)?;
 
         Ok(bincode::deserialize(&buffer)?)
     }

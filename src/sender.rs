@@ -1,12 +1,12 @@
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::marker::PhantomData;
 use std::net::{TcpStream, ToSocketAddrs};
 
 use byteorder::{BigEndian, WriteBytesExt};
 use serde::Serialize;
 
-pub struct Sender<T> {
-    stream: TcpStream,
+pub struct Sender<T: Serialize, W: Write = BufWriter<TcpStream>> {
+    writer: W,
     _marker: PhantomData<T>,
 }
 
@@ -28,21 +28,25 @@ impl From<std::io::Error> for SendError {
         SendError::IoError(error)
     }
 }
-
 impl<T: Serialize> Sender<T> {
     pub fn connect<A: ToSocketAddrs>(address: A) -> std::io::Result<Self> {
-        Ok(Self::new(TcpStream::connect(address)?))
+        Ok(Sender::new(BufWriter::new(TcpStream::connect(address)?)))
     }
-    pub fn new(stream: TcpStream) -> Self {
-        Self {
-            stream,
+    pub fn connect_realtime<A: ToSocketAddrs>(address: A) -> std::io::Result<Sender<T, TcpStream>> {
+        Ok(Sender::new(TcpStream::connect(address)?))
+    }
+    pub fn new<W: Write>(writer: W) -> Sender<T, W> {
+        Sender {
+            writer,
             _marker: PhantomData,
         }
     }
+}
+impl<T: Serialize, W: Write> Sender<T, W> {
     pub fn send(&mut self, value: &T) -> Result<(), SendError> {
         let bytes = bincode::serialize(value)?;
-        self.stream.write_u64::<BigEndian>(bytes.len() as u64)?;
-        self.stream.write(&bytes)?;
+        self.writer.write_u64::<BigEndian>(bytes.len() as u64)?;
+        self.writer.write(&bytes)?;
 
         Ok(())
     }
