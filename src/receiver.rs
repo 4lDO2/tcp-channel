@@ -5,6 +5,8 @@ use std::marker::PhantomData;
 use byteorder::{BigEndian, ReadBytesExt};
 use serde::de::DeserializeOwned;
 
+use crate::ChannelRecv;
+
 pub struct Receiver<T, R: Read = BufReader<TcpStream>> {
     reader: R,
     _marker: PhantomData<T>,
@@ -37,8 +39,10 @@ impl<T: DeserializeOwned> Receiver<T> {
     }
 }
 
-impl<T: DeserializeOwned, R: Read> Receiver<T, R> {
-    pub fn recv(&mut self) -> Result<T, RecvError> {
+impl<T: DeserializeOwned, R: Read> ChannelRecv<T> for Receiver<T, R> {
+    type Error = RecvError;
+
+    fn recv(&mut self) -> Result<T, RecvError> {
         let length = self.reader.read_u64::<BigEndian>()? as usize;
 
         let mut buffer = vec! [0; length];
