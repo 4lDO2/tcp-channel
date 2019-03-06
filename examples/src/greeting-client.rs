@@ -13,13 +13,8 @@ fn main() {
     let address = std::env::args().nth(1).unwrap();
     let mut sender = Sender::connect(address).unwrap();
 
-    for i in 0..10 {
-        if i % 2 == 0 {
-            sender.send(&ClientToServer::Say("hi".into())).unwrap()
-        } else {
-            sender.send(&ClientToServer::Leave).unwrap()
-        }
-    }
-
+    sender.send(&ClientToServer::Say("Hello!".into())).unwrap();
+    
+    // TODO: No current way to sync.
     std::thread::sleep(Duration::from_secs(1));
 }
