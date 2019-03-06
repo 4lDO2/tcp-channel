@@ -73,9 +73,7 @@ fn time() -> Result<(), Error> {
 
         Ok(())
     });
-    dbg!("-1");
     receiver.recv()?;
-    dbg!("0");
     let stream = TcpStream::connect("::1:8888")?;
     let mut sender = Sender::<Request>::new(stream.try_clone()?);
     let mut receiver = Receiver::<Response>::new(stream);
