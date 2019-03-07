@@ -4,12 +4,13 @@ extern crate serde;
 #[macro_use] extern crate serde_derive;
 
 use std::any::Any;
+use std::io::BufReader;
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 // Yeah, regular channels are used to tell the client when the server has started!
 use std::time::{SystemTime, Duration};
 
-use tcp_channel::{Sender, Receiver, ChannelSend, ChannelRecv};
+use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian};
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum Request {
@@ -60,8 +61,15 @@ fn time() -> Result<(), Error> {
         sender.send(())?;
         let (stream, _) = listener.accept()?;
 
-        let mut receiver = Receiver::<Request>::new(stream.try_clone()?);
-        let mut sender = Sender::<Response>::new(stream);
+        let mut receiver = ReceiverBuilder::buffered()
+            .with_type::<Request>()
+            .with_endianness::<BigEndian>()
+            .build(BufReader::new(stream.try_clone()?));
+
+        let mut sender = SenderBuilder::realtime()
+            .with_type::<Response>()
+            .with_endianness::<BigEndian>()
+            .build(stream);
 
         while let Ok(command) = receiver.recv() {
             match command {
@@ -75,8 +83,15 @@ fn time() -> Result<(), Error> {
     });
     receiver.recv()?;
     let stream = TcpStream::connect("127.0.0.1:8888")?;
-    let mut sender = Sender::<Request>::new(stream.try_clone()?);
-    let mut receiver = Receiver::<Response>::new(stream);
+    let mut sender = SenderBuilder::realtime()
+        .with_type::<Request>()
+        .with_endianness::<BigEndian>()
+        .build(stream.try_clone()?);
+
+    let mut receiver = ReceiverBuilder::buffered()
+        .with_type::<Response>()
+        .with_endianness::<BigEndian>()
+        .build(BufReader::new(stream));
 
     sender.send(&Request::RequestTime)?;
     assert_eq!(receiver.recv()?, Response::Respond(initial_time));
