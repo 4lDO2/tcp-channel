@@ -2,7 +2,7 @@ use bincode::Config;
 use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
 /// This trait only exists because bincode wasn't compatible with byteorder.
-pub(crate) trait Endian: ByteOrder {
+pub trait Endian: ByteOrder {
     fn config() -> Config;
 }
 impl Endian for BigEndian {

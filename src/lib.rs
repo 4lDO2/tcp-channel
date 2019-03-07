@@ -13,7 +13,7 @@ mod receiver;
 mod sender;
 
 pub use channel::{ChannelRecv, ChannelSend};
-pub(crate) use endian::Endian;
+pub use endian::Endian;
 pub use error::{RecvError, SendError};
 pub use receiver::{Receiver, ReceiverBuilder};
 pub use sender::{Sender, SenderBuilder};
