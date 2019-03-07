@@ -3,9 +3,8 @@ extern crate serde;
 #[macro_use] extern crate serde_derive;
 
 use std::net::TcpStream;
-use std::time::Duration;
 
-use tcp_channel::{ChannelSend, Sender, ChannelRecv, Receiver};
+use tcp_channel::{ChannelSend, SenderBuilder, ChannelRecv, ReceiverBuilder};
 
 mod common;
 use common::{ClientToServer, ServerToClient};
@@ -14,8 +13,13 @@ fn main() {
     let address = std::env::args().nth(1).unwrap();
     let stream = TcpStream::connect(address).unwrap();
 
-    let mut sender = Sender::new(stream.try_clone().unwrap());
-    let mut receiver = Receiver::<ServerToClient>::new(stream);
+    let mut sender = SenderBuilder::realtime()
+        .with_type::<ClientToServer>()
+        .build(stream.try_clone().unwrap());
+
+    let mut receiver = ReceiverBuilder::realtime()
+        .with_type::<ServerToClient>()
+        .build(stream);
 
     fn message(index: u8) -> ClientToServer {
         if index % 2 == 0 {

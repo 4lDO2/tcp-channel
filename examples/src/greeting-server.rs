@@ -7,7 +7,7 @@ use std::net::TcpListener;
 mod common;
 use common::{ClientToServer, ServerToClient};
 
-use tcp_channel::{Receiver, ChannelRecv, Sender, ChannelSend};
+use tcp_channel::{ReceiverBuilder, ChannelRecv, SenderBuilder, ChannelSend};
 
 fn main() {
     let address = std::env::args().nth(1).unwrap();
@@ -15,8 +15,13 @@ fn main() {
 
     while let Ok((stream, client_address)) = listener.accept() {
         println!("INFO: Started connection with {}", client_address);
-        let mut receiver = Receiver::<ClientToServer>::new(stream.try_clone().unwrap());
-        let mut sender = Sender::new(stream);
+        let mut receiver = ReceiverBuilder::realtime()
+            .with_type::<ClientToServer>()
+            .build(stream.try_clone().unwrap());
+
+        let mut sender = SenderBuilder::realtime()
+            .with_type::<ServerToClient>()
+            .build(stream);
 
         while let Ok(message) = receiver.recv() {
             match message {
