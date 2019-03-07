@@ -93,6 +93,11 @@ impl<T: Serialize, E: Endian> TypedSenderBuilder<T, TcpStream, E> {
         })
     }
 }
+impl<T: Serialize, W: Write, E: Endian> Sender<T, E, W> {
+    pub fn flush(&mut self) -> std::io::Result<()> {
+        self.writer.flush()
+    }
+}
 impl<T: Serialize, W: Write, E: Endian> ChannelSend<T> for Sender<T, E, W> {
     type Error = SendError;
     fn send(&mut self, value: &T) -> Result<(), SendError> {
