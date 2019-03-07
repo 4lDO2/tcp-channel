@@ -56,7 +56,7 @@ fn time() -> Result<(), Error> {
 
     let thread: JoinHandle<Result<(), Error>> = std::thread::spawn(move || {
         let mut time = initial_time;
-        let listener = TcpListener::bind("::1:8888")?;
+        let listener = TcpListener::bind("127.0.0.1:8888")?;
         sender.send(())?;
         let (stream, _) = listener.accept()?;
 
@@ -74,7 +74,7 @@ fn time() -> Result<(), Error> {
         Ok(())
     });
     receiver.recv()?;
-    let stream = TcpStream::connect("::1:8888")?;
+    let stream = TcpStream::connect("127.0.0.1:8888")?;
     let mut sender = Sender::<Request>::new(stream.try_clone()?);
     let mut receiver = Receiver::<Response>::new(stream);
 
