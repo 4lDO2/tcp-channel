@@ -8,6 +8,8 @@ readme = "README.md"
 license = "MIT"
 repository = "https://github.com/4lDO2/tcp-channel"
 keywords = ["spsc", "channel"]
+documentation = "https://docs.rs/tcp-channel"
+categories = ["network-programming"]
 
 [dependencies]
 bincode = "1.1.2"
