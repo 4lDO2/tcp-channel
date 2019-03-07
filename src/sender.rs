@@ -5,31 +5,14 @@ use std::net::{TcpStream, ToSocketAddrs};
 use byteorder::{BigEndian, WriteBytesExt};
 use serde::Serialize;
 
-use crate::ChannelSend;
+use crate::{ChannelSend, SendError};
 
 pub struct Sender<T: Serialize, W: Write = BufWriter<TcpStream>> {
     writer: W,
     _marker: PhantomData<T>,
 }
 
-#[derive(Debug)]
-pub enum SendError {
-    Disconnected,
-    BincodeError(bincode::Error),
-    IoError(std::io::Error),
-}
 
-impl From<bincode::Error> for SendError {
-    fn from(error: bincode::Error) -> Self {
-        SendError::BincodeError(error)
-    }
-}
-
-impl From<std::io::Error> for SendError {
-    fn from(error: std::io::Error) -> Self {
-        SendError::IoError(error)
-    }
-}
 impl<T: Serialize> Sender<T> {
     pub fn connect<A: ToSocketAddrs>(address: A) -> std::io::Result<Self> {
         Ok(Sender::new(BufWriter::new(TcpStream::connect(address)?)))

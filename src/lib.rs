@@ -3,12 +3,15 @@
 
 extern crate bincode;
 extern crate byteorder;
+#[macro_use] extern crate quick_error;
 extern crate serde;
 
-mod sender;
-mod receiver;
 mod channel;
+mod error;
+mod receiver;
+mod sender;
 
-pub use sender::{Sender, SendError};
-pub use receiver::{Receiver, RecvError};
 pub use channel::{ChannelRecv, ChannelSend};
+pub use error::{RecvError, SendError};
+pub use receiver::{Receiver, ReceiverBuilder};
+pub use sender::{Sender, SenderBuilder};

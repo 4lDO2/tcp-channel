@@ -5,30 +5,13 @@ use std::marker::PhantomData;
 use byteorder::{BigEndian, ReadBytesExt};
 use serde::de::DeserializeOwned;
 
-use crate::ChannelRecv;
+use crate::{ChannelRecv, RecvError};
 
 pub struct Receiver<T, R: Read = BufReader<TcpStream>> {
     reader: R,
     _marker: PhantomData<T>,
 }
 
-#[derive(Debug)]
-pub enum RecvError {
-    Disconnected,
-    BincodeError(bincode::Error),
-    IoError(std::io::Error),
-}
-
-impl From<bincode::Error> for RecvError {
-    fn from(error: bincode::Error) -> Self {
-        RecvError::BincodeError(error)
-    }
-}
-impl From<std::io::Error> for RecvError {
-    fn from(error: std::io::Error) -> Self {
-        RecvError::IoError(error)
-    }
-}
 
 impl<T: DeserializeOwned> Receiver<T> {
     pub fn new<R: Read>(reader: R) -> Receiver<T, R> {
