@@ -18,4 +18,4 @@ pub use error::{RecvError, SendError};
 pub use receiver::{Receiver, ReceiverBuilder};
 pub use sender::{Sender, SenderBuilder};
 
-pub use byteorder::{BigEndian, LittleEndian};
+pub use byteorder::{BigEndian, LittleEndian, NativeEndian, NetworkEndian};

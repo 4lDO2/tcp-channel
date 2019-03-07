@@ -16,24 +16,34 @@ pub struct Sender<T: Serialize, E: Endian, W: Write = BufWriter<TcpStream>> {
 }
 
 /// A more convenient way of initializing senders.
-pub struct SenderBuilder<T: Serialize, W: Write, E: Endian> {
+pub struct SenderBuilder;
+
+pub struct TypedSenderBuilder<T, W, E> {
     _marker: PhantomData<(T, W, E)>,
 }
 
-impl<T: Serialize, W: Write, E: Endian> SenderBuilder<T, W, E> {
+impl SenderBuilder {
     /// Begin building a new, buffered channel.
-    pub fn new() -> SenderBuilder<T, BufWriter<TcpStream>, BigEndian> {
+    pub fn new() -> TypedSenderBuilder<(), BufWriter<TcpStream>, BigEndian> {
         Self::buffered()
     }
     /// Begin building a new, buffered channel.
-    pub fn buffered() -> SenderBuilder<T, BufWriter<TcpStream>, BigEndian> {
-        SenderBuilder {
+    pub fn buffered() -> TypedSenderBuilder<(), BufWriter<TcpStream>, BigEndian> {
+        TypedSenderBuilder {
             _marker: PhantomData,
         }
     }
     /// Begin building a new, non-buffered channel.
-    pub fn realtime() -> SenderBuilder<T, TcpStream, BigEndian> {
-        SenderBuilder {
+    pub fn realtime() -> TypedSenderBuilder<(), TcpStream, BigEndian> {
+        TypedSenderBuilder {
+            _marker: PhantomData,
+        }
+    }
+}
+impl<T, W, E> TypedSenderBuilder<T, W, E> {
+    /// Specify the type to send.
+    pub fn with_type<U: Serialize>(self) -> TypedSenderBuilder<U, W, E> {
+        TypedSenderBuilder {
             _marker: PhantomData,
         }
     }
@@ -42,13 +52,13 @@ impl<T: Serialize, W: Write, E: Endian> SenderBuilder<T, W, E> {
     /// *NOTE* This has to be either BigEndian or LittleEndian, 
     /// since bincode doesn't use Endian, but instead has big_endian() and little_endian() in
     /// its Config.
-    pub fn with_endianness<F: Endian>(self) -> SenderBuilder<T, W, F> {
-        SenderBuilder {
+    pub fn with_endianness<F: Endian>(self) -> TypedSenderBuilder<T, W, F> {
+        TypedSenderBuilder {
             _marker: PhantomData,
         }
     }
 }
-impl<T: Serialize, W: Write, E: Endian> SenderBuilder<T, W, E> {
+impl<T: Serialize, W: Write, E: Endian> TypedSenderBuilder<T, W, E> {
     /// Initialize the sender with the current variables.
     pub fn build(self, writer: W) -> Sender<T, BigEndian, W> {
         Sender {
@@ -58,12 +68,10 @@ impl<T: Serialize, W: Write, E: Endian> SenderBuilder<T, W, E> {
         }
     }
 }
-impl<T: Serialize, E: Endian> SenderBuilder<T, BufWriter<TcpStream>, E> {
+impl<T: Serialize, E: Endian> TypedSenderBuilder<T, BufWriter<TcpStream>, E> {
     /// Connect to a listening receiver, at a specified address.
     pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, E, BufWriter<TcpStream>>> {
         let stream = TcpStream::connect(address)?;
-        stream.set_nodelay(false)?;
-        stream.set_nonblocking(false)?;
 
         Ok(Sender {
             writer: BufWriter::new(stream),
@@ -72,12 +80,11 @@ impl<T: Serialize, E: Endian> SenderBuilder<T, BufWriter<TcpStream>, E> {
         })
     }
 }
-impl<T: Serialize, E: Endian> SenderBuilder<T, TcpStream, E> {
+impl<T: Serialize, E: Endian> TypedSenderBuilder<T, TcpStream, E> {
     /// Connect to a listening receiver, at a specified address.
     pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, E, TcpStream>> {
         let stream = TcpStream::connect(address)?;
         stream.set_nodelay(true)?;
-        stream.set_nonblocking(false)?;
 
         Ok(Sender {
             writer: stream,
