@@ -1,8 +1,9 @@
 use bincode::Config;
-use byteorder::{BigEndian, ByteOrder, LittleEndian};
 
-/// This trait only exists because bincode wasn't compatible with byteorder.
-pub trait Endian: ByteOrder {
+pub enum BigEndian {}
+pub enum LittleEndian {}
+
+pub trait Endian {
     fn config() -> Config;
 }
 impl Endian for BigEndian {

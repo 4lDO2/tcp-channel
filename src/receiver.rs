@@ -3,16 +3,15 @@ use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::marker::PhantomData;
 
 use bincode::Config;
-use byteorder::{BigEndian, ReadBytesExt};
 use serde::de::DeserializeOwned;
 
-use crate::{ChannelRecv, Endian, RecvError};
+use crate::{ChannelRecv, Endian, BigEndian, RecvError};
 
 /// The receiving side of a channel.
-pub struct Receiver<T: DeserializeOwned, E: Endian, R: Read = BufReader<TcpStream>> {
+pub struct Receiver<T: DeserializeOwned, R: Read = BufReader<TcpStream>> {
     reader: R,
     config: Config,
-    _marker: PhantomData<(T, E)>,
+    _marker: PhantomData<T>,
 }
 
 /// A more convenient way of initializing receivers.
@@ -47,10 +46,6 @@ impl<T, R, E> TypedReceiverBuilder<T, R, E> {
         }
     }
     /// Specify the endianness.
-    ///
-    /// *NOTE* This has to be either BigEndian or LittleEndian, 
-    /// since bincode doesn't use Endian, but instead has big_endian() and little_endian() in
-    /// its Config.
     pub fn with_endianness<F: Endian>(self) -> TypedReceiverBuilder<T, R, F> {
         TypedReceiverBuilder {
             _marker: PhantomData,
@@ -59,7 +54,7 @@ impl<T, R, E> TypedReceiverBuilder<T, R, E> {
 }
 impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
     /// Initialize the receiver with the current variables.
-    pub fn build(self, reader: R) -> Receiver<T, BigEndian, R> {
+    pub fn build(self, reader: R) -> Receiver<T, R> {
         Receiver {
             _marker: PhantomData,
             reader,
@@ -69,7 +64,7 @@ impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
 }
 impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream>, E> {
     /// Listen for a sender, binding the listener to the specified address.
-    pub fn listen_once<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Receiver<T, E, BufReader<TcpStream>>> {
+    pub fn listen_once<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Receiver<T, BufReader<TcpStream>>> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
@@ -83,7 +78,7 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream
 }
 impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, TcpStream, E> {
     /// Listen for a sender, binding the listener to the specified address.
-    pub fn listen_once<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Receiver<T, E, TcpStream>> {
+    pub fn listen_once<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Receiver<T, TcpStream>> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
@@ -97,15 +92,10 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, TcpStream, E> {
     }
 }
 
-impl<T: DeserializeOwned, E: Endian, R: Read> ChannelRecv<T> for Receiver<T, E, R> {
+impl<T: DeserializeOwned, R: Read> ChannelRecv<T> for Receiver<T, R> {
     type Error = RecvError;
 
     fn recv(&mut self) -> Result<T, RecvError> {
-        let length = self.reader.read_u64::<E>()? as usize;
-
-        let mut buffer = vec! [0; length];
-        self.reader.read_exact(&mut buffer)?;
-
-        Ok(self.config.deserialize(&buffer)?)
+        Ok(self.config.deserialize_from(&mut self.reader)?)
     }
 }

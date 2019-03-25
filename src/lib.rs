@@ -2,7 +2,6 @@
 //! It uses bincode and serde for serialization and deserialization.
 
 extern crate bincode;
-extern crate byteorder;
 #[macro_use] extern crate quick_error;
 extern crate serde;
 
@@ -13,9 +12,7 @@ mod receiver;
 mod sender;
 
 pub use channel::{ChannelRecv, ChannelSend};
-pub use endian::Endian;
+pub use endian::{Endian, BigEndian, LittleEndian};
 pub use error::{RecvError, SendError};
 pub use receiver::{Receiver, ReceiverBuilder};
 pub use sender::{Sender, SenderBuilder};
-
-pub use byteorder::{BigEndian, LittleEndian, NativeEndian, NetworkEndian};
