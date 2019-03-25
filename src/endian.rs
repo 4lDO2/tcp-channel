@@ -2,6 +2,7 @@ use bincode::Config;
 
 pub enum BigEndian {}
 pub enum LittleEndian {}
+pub enum NativeEndian {}
 
 pub trait Endian {
     fn config() -> Config;
@@ -21,4 +22,10 @@ impl Endian for LittleEndian {
     }
 }
 
-
+impl Endian for NativeEndian {
+    fn config() -> Config {
+        let mut config = bincode::config();
+        config.native_endian();
+        config
+    }
+}

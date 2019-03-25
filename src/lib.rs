@@ -1,4 +1,4 @@
-//! SPSC channels in Rust, transmitted through anything that implements Read.
+//! SPSC channels in Rust, transmitted through anything that implements Read and Write.
 //! It uses bincode and serde for serialization and deserialization.
 
 extern crate bincode;
@@ -12,7 +12,7 @@ mod receiver;
 mod sender;
 
 pub use channel::{ChannelRecv, ChannelSend};
-pub use endian::{Endian, BigEndian, LittleEndian};
+pub use endian::{Endian, BigEndian, LittleEndian, NativeEndian};
 pub use error::{RecvError, SendError};
 pub use receiver::{Receiver, ReceiverBuilder};
 pub use sender::{Sender, SenderBuilder};
