@@ -11,6 +11,10 @@ use std::thread::JoinHandle;
 use rand::{FromEntropy, RngCore, rngs::SmallRng};
 use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian};
 
+// This emulates a real TCP connection.
+mod slow_io;
+use slow_io::{SlowReader, SlowWriter};
+
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum Request {
     SendBlob(Box<[u8]>),
@@ -46,8 +50,7 @@ quick_error! {
     }
 }
 
-#[test]
-fn blob() -> Result<(), Error> {
+fn blob(slow: bool) -> Result<(), Error> {
     const SIZE: usize = 262_144;
     // This test generates a random 256KiB BLOB, sends it, and then receives the BLOB, where every byte is
     // added by 1.
@@ -62,12 +65,14 @@ fn blob() -> Result<(), Error> {
         let mut receiver = ReceiverBuilder::buffered()
             .with_type::<Request>()
             .with_endianness::<BigEndian>()
-            .build(BufReader::new(stream.try_clone()?));
+            .with_reader::<BufReader<SlowReader<TcpStream>>>()
+            .build(BufReader::new(SlowReader::new(stream.try_clone()?, slow)));
 
         let mut sender = SenderBuilder::buffered()
             .with_type::<Response>()
             .with_endianness::<BigEndian>()
-            .build(BufWriter::new(stream));
+            .with_writer::<BufWriter<SlowWriter<TcpStream>>>()
+            .build(BufWriter::new(SlowWriter::new(stream, slow)));
 
         while let Ok(command) = receiver.recv() {
             match command {
@@ -88,13 +93,15 @@ fn blob() -> Result<(), Error> {
     let stream = TcpStream::connect("127.0.0.1:8888")?;
     let mut sender = SenderBuilder::realtime()
         .with_type::<Request>()
+        .with_writer::<SlowWriter<TcpStream>>()
         .with_endianness::<BigEndian>()
-        .build(stream.try_clone()?);
+        .build(SlowWriter::new(stream.try_clone()?, slow));
 
     let mut receiver = ReceiverBuilder::buffered()
         .with_type::<Response>()
+        .with_reader::<BufReader<SlowReader<TcpStream>>>()
         .with_endianness::<BigEndian>()
-        .build(BufReader::new(stream));
+        .build(BufReader::new(SlowReader::new(stream, slow)));
 
     let blob = {
         let mut blob = vec! [0u8; SIZE];
@@ -123,4 +130,12 @@ fn blob() -> Result<(), Error> {
     thread.join()??;
 
     Ok(())
+}
+#[test]
+fn fast_blob() -> Result<(), Error> {
+    blob(false)
+}
+#[test]
+fn slow_blob() -> Result<(), Error> {
+    blob(true)
 }

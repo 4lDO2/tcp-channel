@@ -45,6 +45,12 @@ impl<T, R, E> TypedReceiverBuilder<T, R, E> {
             _marker: PhantomData,
         }
     }
+    /// Specify the underlying reader type.
+    pub fn with_reader<S: Read>(self) -> TypedReceiverBuilder<T, S, E> {
+        TypedReceiverBuilder {
+            _marker: PhantomData,
+        }
+    }
     /// Specify the endianness.
     pub fn with_endianness<F: Endian>(self) -> TypedReceiverBuilder<T, R, F> {
         TypedReceiverBuilder {

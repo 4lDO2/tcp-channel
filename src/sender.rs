@@ -46,6 +46,12 @@ impl<T, W, E> TypedSenderBuilder<T, W, E> {
             _marker: PhantomData,
         }
     }
+    /// Specify the underlying writer type.
+    pub fn with_writer<X: Write>(self) -> TypedSenderBuilder<T, X, E> {
+        TypedSenderBuilder {
+            _marker: PhantomData,
+        }
+    }
     /// Specify the endianness.
     pub fn with_endianness<F: Endian>(self) -> TypedSenderBuilder<T, W, F> {
         TypedSenderBuilder {
