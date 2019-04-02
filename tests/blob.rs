@@ -9,7 +9,7 @@ use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
 use rand::{FromEntropy, RngCore, rngs::SmallRng};
-use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian};
+use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian, DEFAULT_MAX_SIZE};
 
 // This emulates a real TCP connection.
 mod slow_io;
@@ -50,7 +50,7 @@ quick_error! {
     }
 }
 
-fn blob(slow: bool) -> Result<(), Error> {
+fn blob(slow: bool, max_size: usize) -> Result<(), Error> {
     const SIZE: usize = 262_144;
     // This test generates a random 256KiB BLOB, sends it, and then receives the BLOB, where every byte is
     // added by 1.
@@ -81,6 +81,7 @@ fn blob(slow: bool) -> Result<(), Error> {
             .with_type::<Request>()
             .with_endianness::<BigEndian>()
             .with_reader::<BufReader<SlowReader<TcpStream>>>()
+            .with_max_size(max_size)
             .build(BufReader::new(SlowReader::new(stream.try_clone()?, slow)));
 
         let mut sender = SenderBuilder::buffered()
@@ -116,6 +117,7 @@ fn blob(slow: bool) -> Result<(), Error> {
         .with_type::<Response>()
         .with_reader::<BufReader<SlowReader<TcpStream>>>()
         .with_endianness::<BigEndian>()
+        .with_max_size(max_size)
         .build(BufReader::new(SlowReader::new(stream, slow)));
 
     let blob = {
@@ -148,9 +150,14 @@ fn blob(slow: bool) -> Result<(), Error> {
 }
 #[test]
 fn fast_blob() -> Result<(), Error> {
-    blob(false)
+    blob(false, DEFAULT_MAX_SIZE)
 }
 #[test]
 fn slow_blob() -> Result<(), Error> {
-    blob(true)
+    blob(true, DEFAULT_MAX_SIZE)
+}
+#[should_panic]
+#[test]
+fn fast_blob_too_small() {
+    blob(true, 1024).unwrap()
 }

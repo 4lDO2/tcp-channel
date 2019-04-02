@@ -67,6 +67,13 @@ impl<T, R, E> TypedReceiverBuilder<T, R, E> {
             max_size: self.max_size,
         }
     }
+    /// Specify the max size to be allocated when receiving.
+    pub fn with_max_size(self, max_size: usize) -> Self {
+        Self {
+            _marker: PhantomData,
+            max_size,
+        }
+    }
 }
 impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
     /// Initialize the receiver with the current variables.

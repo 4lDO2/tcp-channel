@@ -15,5 +15,5 @@ mod sender;
 pub use channel::{ChannelRecv, ChannelSend};
 pub use endian::{Endian, BigEndian, LittleEndian, NativeEndian};
 pub use error::{RecvError, SendError};
-pub use receiver::{Receiver, ReceiverBuilder};
+pub use receiver::{Receiver, ReceiverBuilder, DEFAULT_MAX_SIZE};
 pub use sender::{Sender, SenderBuilder};
