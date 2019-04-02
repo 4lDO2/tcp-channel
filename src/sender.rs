@@ -3,15 +3,16 @@ use std::marker::PhantomData;
 use std::net::{TcpStream, ToSocketAddrs};
 
 use bincode::Config;
+use byteorder::WriteBytesExt;
 use serde::Serialize;
 
 use crate::{ChannelSend, Endian, BigEndian, SendError};
 
 /// The sending side of a channel.
-pub struct Sender<T: Serialize, W: Write = BufWriter<TcpStream>> {
+pub struct Sender<T: Serialize, E: Endian, W: Write = BufWriter<TcpStream>> {
     writer: W,
     config: Config,
-    _marker: PhantomData<T>,
+    _marker: PhantomData<(T, E)>,
 }
 
 /// A more convenient way of initializing senders.
@@ -61,7 +62,7 @@ impl<T, W, E> TypedSenderBuilder<T, W, E> {
 }
 impl<T: Serialize, W: Write, E: Endian> TypedSenderBuilder<T, W, E> {
     /// Initialize the sender with the current variables.
-    pub fn build(self, writer: W) -> Sender<T, W> {
+    pub fn build(self, writer: W) -> Sender<T, E, W> {
         Sender {
             _marker: PhantomData,
             writer,
@@ -71,7 +72,7 @@ impl<T: Serialize, W: Write, E: Endian> TypedSenderBuilder<T, W, E> {
 }
 impl<T: Serialize, E: Endian> TypedSenderBuilder<T, BufWriter<TcpStream>, E> {
     /// Connect to a listening receiver, at a specified address.
-    pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, BufWriter<TcpStream>>> {
+    pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, E, BufWriter<TcpStream>>> {
         let stream = TcpStream::connect(address)?;
 
         Ok(Sender {
@@ -83,7 +84,7 @@ impl<T: Serialize, E: Endian> TypedSenderBuilder<T, BufWriter<TcpStream>, E> {
 }
 impl<T: Serialize, E: Endian> TypedSenderBuilder<T, TcpStream, E> {
     /// Connect to a listening receiver, at a specified address.
-    pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, TcpStream>> {
+    pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, E, TcpStream>> {
         let stream = TcpStream::connect(address)?;
         stream.set_nodelay(true)?;
 
@@ -94,15 +95,17 @@ impl<T: Serialize, E: Endian> TypedSenderBuilder<T, TcpStream, E> {
         })
     }
 }
-impl<T: Serialize, W: Write> Sender<T, W> {
+impl<T: Serialize, E: Endian, W: Write> Sender<T, E, W> {
     pub fn flush(&mut self) -> std::io::Result<()> {
         self.writer.flush()
     }
 }
-impl<T: Serialize, W: Write> ChannelSend<T> for Sender<T, W> {
+impl<T: Serialize, E: Endian, W: Write> ChannelSend<T> for Sender<T, E, W> {
     type Error = SendError;
     fn send(&mut self, value: &T) -> Result<(), SendError> {
-        self.config.serialize_into(&mut self.writer, value)?;
+        let buffer = self.config.serialize(value)?;
+        self.writer.write_u64::<E>(buffer.len() as u64)?;
+        self.writer.write(&buffer)?;
         Ok(())
     }
 }

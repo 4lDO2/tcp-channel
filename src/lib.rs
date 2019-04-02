@@ -2,7 +2,8 @@
 //! It uses bincode and serde for serialization and deserialization.
 
 extern crate bincode;
-#[macro_use] extern crate quick_error;
+extern crate byteorder;
+extern crate quick_error;
 extern crate serde;
 
 mod channel;

@@ -4,7 +4,7 @@ extern crate serde;
 #[macro_use] extern crate serde_derive;
 
 use std::any::Any;
-use std::io::{BufReader, BufWriter};
+use std::io::{BufReader, BufWriter, ErrorKind as IoErrorKind};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
@@ -32,7 +32,7 @@ quick_error! {
         Io(err: std::io::Error) {
             from()
         }
-        SendErr(err: std::sync::mpsc::SendError<()>) {
+        SendErr(err: std::sync::mpsc::SendError<u16>) {
             from()
         }
         RecvErr(err: std::sync::mpsc::RecvError) {
@@ -58,8 +58,23 @@ fn blob(slow: bool) -> Result<(), Error> {
     let (sender, receiver) = std::sync::mpsc::channel();
 
     let thread: JoinHandle<Result<(), Error>> = std::thread::spawn(move || {
-        let listener = TcpListener::bind("127.0.0.1:8888")?;
-        sender.send(())?;
+        let mut port = 2000;
+        let listener = loop {
+            match TcpListener::bind(format!("127.0.0.1:{}", port)) {
+                Ok(listener) => break Ok(listener),
+                Err(ioerror) => if let IoErrorKind::AddrInUse = ioerror.kind() {
+                    port += 1;
+                    if port >= 8000 {
+                        break Err(ioerror)
+                    }
+                    continue
+                } else {
+                    break Err(ioerror)
+                }
+            }
+        }?;
+
+        sender.send(port)?;
         let (stream, _) = listener.accept()?;
 
         let mut receiver = ReceiverBuilder::buffered()
@@ -89,8 +104,8 @@ fn blob(slow: bool) -> Result<(), Error> {
 
         Ok(())
     });
-    receiver.recv()?;
-    let stream = TcpStream::connect("127.0.0.1:8888")?;
+    let port = receiver.recv()?;
+    let stream = TcpStream::connect(format!("127.0.0.1:{}", port))?;
     let mut sender = SenderBuilder::realtime()
         .with_type::<Request>()
         .with_writer::<SlowWriter<TcpStream>>()

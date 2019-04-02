@@ -1,10 +1,8 @@
+pub use byteorder::{BigEndian, LittleEndian, NativeEndian};
+use byteorder::ByteOrder;
 use bincode::Config;
 
-pub enum BigEndian {}
-pub enum LittleEndian {}
-pub enum NativeEndian {}
-
-pub trait Endian {
+pub trait Endian: ByteOrder {
     fn config() -> Config;
 }
 impl Endian for BigEndian {
@@ -18,14 +16,6 @@ impl Endian for LittleEndian {
     fn config() -> Config {
         let mut config = bincode::config();
         config.little_endian();
-        config
-    }
-}
-
-impl Endian for NativeEndian {
-    fn config() -> Config {
-        let mut config = bincode::config();
-        config.native_endian();
         config
     }
 }
