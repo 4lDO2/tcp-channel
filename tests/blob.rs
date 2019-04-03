@@ -50,7 +50,7 @@ quick_error! {
     }
 }
 
-fn blob(slow: bool, max_size: usize) -> Result<(), Error> {
+fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
     const SIZE: usize = 262_144;
     // This test generates a random 256KiB BLOB, sends it, and then receives the BLOB, where every byte is
     // added by 1.
@@ -82,13 +82,13 @@ fn blob(slow: bool, max_size: usize) -> Result<(), Error> {
             .with_endianness::<BigEndian>()
             .with_reader::<BufReader<SlowReader<TcpStream>>>()
             .with_max_size(max_size)
-            .build(BufReader::new(SlowReader::new(stream.try_clone()?, slow)));
+            .build(BufReader::new(SlowReader::new(stream.try_clone()?, slow, blocking)));
 
         let mut sender = SenderBuilder::buffered()
             .with_type::<Response>()
             .with_endianness::<BigEndian>()
             .with_writer::<BufWriter<SlowWriter<TcpStream>>>()
-            .build(BufWriter::new(SlowWriter::new(stream, slow)));
+            .build(BufWriter::new(SlowWriter::new(stream, slow, blocking)));
 
         while let Ok(command) = receiver.recv() {
             match command {
@@ -111,14 +111,14 @@ fn blob(slow: bool, max_size: usize) -> Result<(), Error> {
         .with_type::<Request>()
         .with_writer::<SlowWriter<TcpStream>>()
         .with_endianness::<BigEndian>()
-        .build(SlowWriter::new(stream.try_clone()?, slow));
+        .build(SlowWriter::new(stream.try_clone()?, slow, blocking));
 
     let mut receiver = ReceiverBuilder::buffered()
         .with_type::<Response>()
         .with_reader::<BufReader<SlowReader<TcpStream>>>()
         .with_endianness::<BigEndian>()
         .with_max_size(max_size)
-        .build(BufReader::new(SlowReader::new(stream, slow)));
+        .build(BufReader::new(SlowReader::new(stream, slow, blocking)));
 
     let blob = {
         let mut blob = vec! [0u8; SIZE];
@@ -150,14 +150,22 @@ fn blob(slow: bool, max_size: usize) -> Result<(), Error> {
 }
 #[test]
 fn fast_blob() -> Result<(), Error> {
-    blob(false, DEFAULT_MAX_SIZE)
+    blob(false, true, DEFAULT_MAX_SIZE)
+}
+#[test]
+fn fast_nonblocking_blob() -> Result<(), Error> {
+    blob(false, false, DEFAULT_MAX_SIZE)
 }
 #[test]
 fn slow_blob() -> Result<(), Error> {
-    blob(true, DEFAULT_MAX_SIZE)
+    blob(true, true, DEFAULT_MAX_SIZE)
+}
+#[test]
+fn slow_nonblocking_blob() -> Result<(), Error> {
+    blob(true, false, DEFAULT_MAX_SIZE)
 }
 #[should_panic]
 #[test]
 fn fast_blob_too_small() {
-    blob(true, 1024).unwrap()
+    blob(true, true, 1024).unwrap()
 }
