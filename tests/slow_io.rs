@@ -1,4 +1,5 @@
-use std::io::{Read, Result, Write, ErrorKind as IoErrorKind};
+use std::io::{Result, ErrorKind as IoErrorKind};
+use std::io::prelude::*;
 use std::time::{Instant, Duration};
 
 // In milliseconds.
@@ -20,26 +21,36 @@ impl<T: Write> SlowWriter<T> {
         }
     }
 }
+
+fn emulate_nonblocking(last_io: &mut Option<Instant>) -> Result<()> {
+    match *last_io {
+        Some(last_io_some) => if last_io_some + Duration::from_millis(DELAY) < Instant::now() {
+            *last_io = None;
+            return Err(IoErrorKind::WouldBlock.into())
+        },
+        None => *last_io = Some(Instant::now()),
+    }
+    Ok(())
+}
+
 impl<T: Write> Write for SlowWriter<T> {
     fn write(&mut self, data: &[u8]) -> Result<usize> {
         if self.slow {
             if self.blocking {
                 std::thread::sleep(Duration::from_millis(DELAY));
             } else {
-                match self.last_write {
-                    Some(last_write) => if last_write + Duration::from_millis(DELAY) > Instant::now() {
-                    } else {
-                        return Err(IoErrorKind::WouldBlock.into())
-                    },
-                    None => self.last_write = Some(Instant::now()),
-                }
+                emulate_nonblocking(&mut self.last_write)?
             }
         }
         self.inner.write(data)
     }
     fn flush(&mut self) -> Result<()> {
         if self.slow {
-            std::thread::sleep(Duration::from_millis(DELAY));
+            if self.blocking {
+                std::thread::sleep(Duration::from_millis(DELAY));
+            } else {
+                emulate_nonblocking(&mut self.last_write)?;
+            }
         }
         self.inner.flush()
     }
@@ -66,13 +77,7 @@ impl<T: Read> Read for SlowReader<T> {
             if self.blocking {
                 std::thread::sleep(Duration::from_millis(DELAY));
             } else {
-                match self.last_read {
-                    Some(last_write) => if last_write + Duration::from_millis(DELAY) > Instant::now() {
-                    } else {
-                        return Err(IoErrorKind::WouldBlock.into())
-                    },
-                    None => self.last_read = Some(Instant::now()),
-                }
+                emulate_nonblocking(&mut self.last_read)?
             }
         }
         self.inner.read(buffer)

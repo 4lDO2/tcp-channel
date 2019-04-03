@@ -16,6 +16,13 @@ pub struct Receiver<T: DeserializeOwned, E: Endian, R: Read = BufReader<TcpStrea
     config: Config,
     max_size: usize,
     _marker: PhantomData<(T, E)>,
+
+    // This buffer is used for storing the currently read bytes in case the stream is nonblocking.
+    // Otherwise, bincode would deserialize only the currently read bytes.
+    buffer: Vec<u8>,
+
+    bytes_read: usize,
+    bytes_to_read: usize,
 }
 
 /// A more convenient way of initializing receivers.
@@ -83,6 +90,9 @@ impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
             reader,
             config: E::config(),
             max_size: self.max_size,
+            buffer: Vec::new(),
+            bytes_read: 0,
+            bytes_to_read: 0,
         }
     }
 }
@@ -98,6 +108,9 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream
             _marker: PhantomData,
             reader: BufReader::new(stream),
             max_size: self.max_size,
+            buffer: Vec::new(),
+            bytes_read: 0,
+            bytes_to_read: 0,
         })
     }
 }
@@ -107,13 +120,15 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, TcpStream, E> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
-        stream.set_nodelay(true)?;
 
         Ok(Receiver {
             config: E::config(),
             _marker: PhantomData,
             reader: stream,
             max_size: self.max_size,
+            buffer: Vec::new(),
+            bytes_read: 0,
+            bytes_to_read: 0,
         })
     }
 }
@@ -122,12 +137,33 @@ impl<T: DeserializeOwned, E: Endian, R: Read> ChannelRecv<T> for Receiver<T, E, 
     type Error = RecvError;
 
     fn recv(&mut self) -> Result<T, RecvError> {
-        let length = self.reader.read_u64::<E>()? as usize;
-        if length > self.max_size {
-            return Err(RecvError::TooLarge(length))
+        if self.bytes_to_read == 0 {
+            let length = self.reader.read_u64::<E>()? as usize;
+            if length > self.max_size {
+                return Err(RecvError::TooLarge(length))
+            }
+
+            if self.buffer.len() < length {
+                self.buffer.extend(std::iter::repeat(0).take(length - self.buffer.len()));
+            }
+
+            self.bytes_to_read = length;
+            self.bytes_read = 0;
         }
-        let mut buffer = vec! [0; length];
-        self.reader.read_exact(&mut buffer)?;
-        Ok(self.config.deserialize(&buffer)?)
+
+        loop {
+            match self.reader.read(&mut self.buffer[self.bytes_read..self.bytes_to_read]) {
+                Ok(size) => {
+                    self.bytes_read += size;
+                    if self.bytes_read >= self.bytes_to_read {
+                        let length = self.bytes_to_read;
+                        self.bytes_to_read = 0;
+                        return Ok(self.config.deserialize(&self.buffer[0..length])?)
+                    }
+                },
+                Err(error) => return Err(error.into()),
+            }
+        }
+
     }
 }

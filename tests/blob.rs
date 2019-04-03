@@ -5,13 +5,15 @@ extern crate serde;
 
 use std::any::Any;
 use std::io::{BufReader, BufWriter, ErrorKind as IoErrorKind};
+use std::io::prelude::*;
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
 use rand::{FromEntropy, RngCore, rngs::SmallRng};
-use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian, DEFAULT_MAX_SIZE};
+use serde::de::DeserializeOwned;
+use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian, Receiver as TcpReceiver, RecvError, DEFAULT_MAX_SIZE};
 
-// This emulates a real TCP connection.
+// This emulates a real delayed TCP connection.
 mod slow_io;
 use slow_io::{SlowReader, SlowWriter};
 
@@ -50,6 +52,18 @@ quick_error! {
     }
 }
 
+fn pretend_blocking_read<T: DeserializeOwned, R: Read>(receiver: &mut TcpReceiver<T, BigEndian, R>) -> Result<T, RecvError> {
+    loop {
+        match receiver.recv() {
+            Ok(value) => return Ok(value),
+            Err(RecvError::IoError(ioerror)) => match ioerror.kind() {
+                IoErrorKind::WouldBlock => continue,
+                _ => return Err(RecvError::IoError(ioerror).into()),
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
 fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
     const SIZE: usize = 262_144;
     // This test generates a random 256KiB BLOB, sends it, and then receives the BLOB, where every byte is
@@ -72,32 +86,32 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
                     break Err(ioerror)
                 }
             }
-        }?;
+        }.unwrap();
 
-        sender.send(port)?;
-        let (stream, _) = listener.accept()?;
+        sender.send(port).unwrap();
+        let (stream, _) = listener.accept().unwrap();
 
         let mut receiver = ReceiverBuilder::buffered()
             .with_type::<Request>()
             .with_endianness::<BigEndian>()
             .with_reader::<BufReader<SlowReader<TcpStream>>>()
             .with_max_size(max_size)
-            .build(BufReader::new(SlowReader::new(stream.try_clone()?, slow, blocking)));
+            .build(BufReader::new(SlowReader::new(stream.try_clone().unwrap(), slow, blocking)));
 
         let mut sender = SenderBuilder::buffered()
             .with_type::<Response>()
             .with_endianness::<BigEndian>()
             .with_writer::<BufWriter<SlowWriter<TcpStream>>>()
-            .build(BufWriter::new(SlowWriter::new(stream, slow, blocking)));
+            .build(BufWriter::new(SlowWriter::new(stream, slow, true)));
 
-        while let Ok(command) = receiver.recv() {
+        while let Ok(command) = pretend_blocking_read(&mut receiver) {
             match command {
                 Request::SendBlob(mut blob) => {
                     for byte in blob.iter_mut() {
                         *byte = byte.wrapping_add(1)
                     }
-                    sender.send(&Response::Respond(blob))?;
-                    sender.flush()?;
+                    sender.send(&Response::Respond(blob)).unwrap();
+                    sender.flush().unwrap();
                 },
                 Request::Stop => return Ok(())
             }
@@ -105,13 +119,13 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
 
         Ok(())
     });
-    let port = receiver.recv()?;
-    let stream = TcpStream::connect(format!("127.0.0.1:{}", port))?;
+    let port = receiver.recv().unwrap();
+    let stream = TcpStream::connect(format!("127.0.0.1:{}", port)).unwrap();
     let mut sender = SenderBuilder::realtime()
         .with_type::<Request>()
         .with_writer::<SlowWriter<TcpStream>>()
         .with_endianness::<BigEndian>()
-        .build(SlowWriter::new(stream.try_clone()?, slow, blocking));
+        .build(SlowWriter::new(stream.try_clone().unwrap(), slow, true));
 
     let mut receiver = ReceiverBuilder::buffered()
         .with_type::<Response>()
@@ -128,11 +142,11 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
         blob.into_boxed_slice()
     };
 
-    sender.send(&Request::SendBlob(blob.clone()))?;
-    sender.flush()?;
+    sender.send(&Request::SendBlob(blob.clone())).unwrap();
+    sender.flush().unwrap();
 
-    let new_blob = match receiver.recv()? {
-        Response::Respond(new_blob) => new_blob,
+    let new_blob = match pretend_blocking_read(&mut receiver).unwrap() {
+        Response::Respond(blob) => blob,
     };
     let precalculated_new_blob = blob.into_iter()
         .map(|byte| byte.wrapping_add(1))
@@ -140,21 +154,18 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
 
     assert_ne!(blob, new_blob);
     assert_eq!(new_blob, precalculated_new_blob);
+    println!("Asserted");
 
-    sender.send(&Request::Stop)?;
-    sender.flush()?;
+    sender.send(&Request::Stop).unwrap();
+    sender.flush().unwrap();
 
-    thread.join()??;
+    thread.join().unwrap().unwrap();
 
     Ok(())
 }
 #[test]
 fn fast_blob() -> Result<(), Error> {
     blob(false, true, DEFAULT_MAX_SIZE)
-}
-#[test]
-fn fast_nonblocking_blob() -> Result<(), Error> {
-    blob(false, false, DEFAULT_MAX_SIZE)
 }
 #[test]
 fn slow_blob() -> Result<(), Error> {
