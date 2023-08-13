@@ -26,13 +26,9 @@ pub struct Receiver<T: DeserializeOwned, R: Read = BufReader<TcpStream>> {
 /// A more convenient way of initializing receivers.
 pub struct ReceiverBuilder;
 
-pub struct TypedReceiverBuilder<T, R> {
-    _marker: PhantomData<(T, R)>,
-    max_size: usize,
-}
 impl ReceiverBuilder {
     /// Begin building a new, buffered channel.
-    pub fn new() -> TypedReceiverBuilder<(), BufReader<TcpStream>> {
+    pub fn build() -> TypedReceiverBuilder<(), BufReader<TcpStream>> {
         Self::buffered()
     }
     /// Begin building a new, buffered channel.
@@ -50,6 +46,12 @@ impl ReceiverBuilder {
         }
     }
 }
+
+pub struct TypedReceiverBuilder<T, R> {
+    _marker: PhantomData<(T, R)>,
+    max_size: usize,
+}
+
 impl<T, R> TypedReceiverBuilder<T, R> {
     /// Specify the type to send.
     pub fn with_type<U: DeserializeOwned>(self) -> TypedReceiverBuilder<U, R> {
@@ -73,6 +75,7 @@ impl<T, R> TypedReceiverBuilder<T, R> {
         }
     }
 }
+
 impl<T: DeserializeOwned, R: Read> TypedReceiverBuilder<T, R> {
     /// Initialize the receiver with the current variables.
     pub fn build(self, reader: R) -> Receiver<T, R> {
@@ -86,6 +89,7 @@ impl<T: DeserializeOwned, R: Read> TypedReceiverBuilder<T, R> {
         }
     }
 }
+
 impl<T: DeserializeOwned> TypedReceiverBuilder<T, BufReader<TcpStream>> {
     /// Listen for a sender, binding the listener to the specified address.
     pub fn listen_once<A: ToSocketAddrs>(
@@ -106,6 +110,7 @@ impl<T: DeserializeOwned> TypedReceiverBuilder<T, BufReader<TcpStream>> {
         })
     }
 }
+
 impl<T: DeserializeOwned> TypedReceiverBuilder<T, TcpStream> {
     /// Listen for a sender, binding the listener to the specified address.
     pub fn listen_once<A: ToSocketAddrs>(

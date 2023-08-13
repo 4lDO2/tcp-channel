@@ -16,13 +16,9 @@ pub struct Sender<T: Serialize, W: Write = BufWriter<TcpStream>> {
 /// A more convenient way of initializing senders.
 pub struct SenderBuilder;
 
-pub struct TypedSenderBuilder<T, W> {
-    _marker: PhantomData<(T, W)>,
-}
-
 impl SenderBuilder {
     /// Begin building a new, buffered channel.
-    pub fn new() -> TypedSenderBuilder<(), BufWriter<TcpStream>> {
+    pub fn build() -> TypedSenderBuilder<(), BufWriter<TcpStream>> {
         Self::buffered()
     }
     /// Begin building a new, buffered channel.
@@ -38,6 +34,11 @@ impl SenderBuilder {
         }
     }
 }
+
+pub struct TypedSenderBuilder<T, W> {
+    _marker: PhantomData<(T, W)>,
+}
+
 impl<T, W> TypedSenderBuilder<T, W> {
     /// Specify the type to send.
     pub fn with_type<U: Serialize>(self) -> TypedSenderBuilder<U, W> {
@@ -52,6 +53,7 @@ impl<T, W> TypedSenderBuilder<T, W> {
         }
     }
 }
+
 impl<T: Serialize, W: Write> TypedSenderBuilder<T, W> {
     /// Initialize the sender with the current variables.
     pub fn build(self, writer: W) -> Sender<T, W> {
@@ -61,6 +63,7 @@ impl<T: Serialize, W: Write> TypedSenderBuilder<T, W> {
         }
     }
 }
+
 impl<T: Serialize> TypedSenderBuilder<T, BufWriter<TcpStream>> {
     /// Connect to a listening receiver, at a specified address.
     pub fn connect<A: ToSocketAddrs>(
@@ -75,6 +78,7 @@ impl<T: Serialize> TypedSenderBuilder<T, BufWriter<TcpStream>> {
         })
     }
 }
+
 impl<T: Serialize> TypedSenderBuilder<T, TcpStream> {
     /// Connect to a listening receiver, at a specified address.
     pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, TcpStream>> {
@@ -87,11 +91,13 @@ impl<T: Serialize> TypedSenderBuilder<T, TcpStream> {
         })
     }
 }
+
 impl<T: Serialize, W: Write> Sender<T, W> {
     pub fn flush(&mut self) -> std::io::Result<()> {
         self.writer.flush()
     }
 }
+
 impl<T: Serialize, W: Write> ChannelSend<T> for Sender<T, W> {
     type Error = SendError;
     fn send(&mut self, value: &T) -> Result<(), SendError> {
