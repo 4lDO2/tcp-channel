@@ -1,4 +1,7 @@
-use std::sync::mpsc::{Sender as StdSender, Receiver as StdReceiver, SendError as StdSendError, RecvError as StdRecvError};
+use std::sync::mpsc::{
+    Receiver as StdReceiver, RecvError as StdRecvError, SendError as StdSendError,
+    Sender as StdSender,
+};
 
 pub trait ChannelSend<T> {
     type Error;

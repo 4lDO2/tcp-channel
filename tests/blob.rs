@@ -1,17 +1,22 @@
 extern crate tcp_channel;
-#[macro_use] extern crate quick_error;
+#[macro_use]
+extern crate quick_error;
 extern crate serde;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate serde_derive;
 
 use std::any::Any;
-use std::io::{BufReader, BufWriter, ErrorKind as IoErrorKind};
 use std::io::prelude::*;
+use std::io::{BufReader, BufWriter, ErrorKind as IoErrorKind};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use rand::{FromEntropy, RngCore, rngs::SmallRng};
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use serde::de::DeserializeOwned;
-use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian, Receiver as TcpReceiver, RecvError, DEFAULT_MAX_SIZE};
+use tcp_channel::{
+    ChannelRecv, ChannelSend, Receiver as TcpReceiver, ReceiverBuilder, RecvError, SenderBuilder,
+    DEFAULT_MAX_SIZE,
+};
 
 // This emulates a real delayed TCP connection.
 mod slow_io;
@@ -46,20 +51,22 @@ quick_error! {
         TcpRecvErr(err: tcp_channel::RecvError) {
             from()
         }
-        JoinErr(err: Box<Any + Send + 'static>) {
+        JoinErr(err: Box<dyn Any + Send + 'static>) {
             from()
         }
     }
 }
 
-fn pretend_blocking_read<T: DeserializeOwned, R: Read>(receiver: &mut TcpReceiver<T, BigEndian, R>) -> Result<T, RecvError> {
+fn pretend_blocking_read<T: DeserializeOwned, R: Read>(
+    receiver: &mut TcpReceiver<T, R>,
+) -> Result<T, RecvError> {
     loop {
         match receiver.recv() {
             Ok(value) => return Ok(value),
             Err(RecvError::IoError(ioerror)) => match ioerror.kind() {
                 IoErrorKind::WouldBlock => continue,
                 _ => return Err(RecvError::IoError(ioerror).into()),
-            }
+            },
             Err(error) => return Err(error.into()),
         }
     }
@@ -68,7 +75,7 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
     const SIZE: usize = 262_144;
     // This test generates a random 256KiB BLOB, sends it, and then receives the BLOB, where every byte is
     // added by 1.
-    
+
     let (sender, receiver) = std::sync::mpsc::channel();
 
     let thread: JoinHandle<Result<(), Error>> = std::thread::spawn(move || {
@@ -76,31 +83,36 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
         let listener = loop {
             match TcpListener::bind(format!("127.0.0.1:{}", port)) {
                 Ok(listener) => break Ok(listener),
-                Err(ioerror) => if let IoErrorKind::AddrInUse = ioerror.kind() {
-                    port += 1;
-                    if port >= 8000 {
-                        break Err(ioerror)
+                Err(ioerror) => {
+                    if let IoErrorKind::AddrInUse = ioerror.kind() {
+                        port += 1;
+                        if port >= 8000 {
+                            break Err(ioerror);
+                        }
+                        continue;
+                    } else {
+                        break Err(ioerror);
                     }
-                    continue
-                } else {
-                    break Err(ioerror)
                 }
             }
-        }.unwrap();
+        }
+        .unwrap();
 
         sender.send(port).unwrap();
         let (stream, _) = listener.accept().unwrap();
 
         let mut receiver = ReceiverBuilder::buffered()
             .with_type::<Request>()
-            .with_endianness::<BigEndian>()
             .with_reader::<BufReader<SlowReader<TcpStream>>>()
             .with_max_size(max_size)
-            .build(BufReader::new(SlowReader::new(stream.try_clone().unwrap(), slow, blocking)));
+            .build(BufReader::new(SlowReader::new(
+                stream.try_clone().unwrap(),
+                slow,
+                blocking,
+            )));
 
         let mut sender = SenderBuilder::buffered()
             .with_type::<Response>()
-            .with_endianness::<BigEndian>()
             .with_writer::<BufWriter<SlowWriter<TcpStream>>>()
             .build(BufWriter::new(SlowWriter::new(stream, slow, true)));
 
@@ -112,8 +124,8 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
                     }
                     sender.send(&Response::Respond(blob)).unwrap();
                     sender.flush().unwrap();
-                },
-                Request::Stop => return Ok(())
+                }
+                Request::Stop => return Ok(()),
             }
         }
 
@@ -124,18 +136,16 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
     let mut sender = SenderBuilder::realtime()
         .with_type::<Request>()
         .with_writer::<SlowWriter<TcpStream>>()
-        .with_endianness::<BigEndian>()
         .build(SlowWriter::new(stream.try_clone().unwrap(), slow, true));
 
     let mut receiver = ReceiverBuilder::buffered()
         .with_type::<Response>()
         .with_reader::<BufReader<SlowReader<TcpStream>>>()
-        .with_endianness::<BigEndian>()
         .with_max_size(max_size)
         .build(BufReader::new(SlowReader::new(stream, slow, blocking)));
 
     let blob = {
-        let mut blob = vec! [0u8; SIZE];
+        let mut blob = vec![0u8; SIZE];
 
         SmallRng::from_entropy().fill_bytes(&mut blob);
 
@@ -148,7 +158,8 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
     let new_blob = match pretend_blocking_read(&mut receiver).unwrap() {
         Response::Respond(blob) => blob,
     };
-    let precalculated_new_blob = blob.into_iter()
+    let precalculated_new_blob = blob
+        .into_iter()
         .map(|byte| byte.wrapping_add(1))
         .collect::<Box<[u8]>>();
 
