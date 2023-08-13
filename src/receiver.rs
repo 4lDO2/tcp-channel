@@ -2,20 +2,18 @@ use std::io::{BufReader, Read};
 use std::marker::PhantomData;
 use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 
-use bincode::Config;
-use byteorder::ReadBytesExt;
+use byteorder::{LittleEndian, ReadBytesExt};
 use serde::de::DeserializeOwned;
 
-use crate::{BigEndian, ChannelRecv, Endian, RecvError};
+use crate::{ChannelRecv, RecvError};
 
 pub const DEFAULT_MAX_SIZE: usize = 64 * 0x100_000;
 
 /// The receiving side of a channel.
-pub struct Receiver<T: DeserializeOwned, E: Endian, R: Read = BufReader<TcpStream>> {
+pub struct Receiver<T: DeserializeOwned, R: Read = BufReader<TcpStream>> {
     reader: R,
-    config: Config,
     max_size: usize,
-    _marker: PhantomData<(T, E)>,
+    _marker: PhantomData<T>,
 
     // This buffer is used for storing the currently read bytes in case the stream is nonblocking.
     // Otherwise, bincode would deserialize only the currently read bytes.
@@ -28,47 +26,40 @@ pub struct Receiver<T: DeserializeOwned, E: Endian, R: Read = BufReader<TcpStrea
 /// A more convenient way of initializing receivers.
 pub struct ReceiverBuilder;
 
-pub struct TypedReceiverBuilder<T, R, E> {
-    _marker: PhantomData<(T, R, E)>,
+pub struct TypedReceiverBuilder<T, R> {
+    _marker: PhantomData<(T, R)>,
     max_size: usize,
 }
 impl ReceiverBuilder {
     /// Begin building a new, buffered channel.
-    pub fn new() -> TypedReceiverBuilder<(), BufReader<TcpStream>, BigEndian> {
+    pub fn new() -> TypedReceiverBuilder<(), BufReader<TcpStream>> {
         Self::buffered()
     }
     /// Begin building a new, buffered channel.
-    pub fn buffered() -> TypedReceiverBuilder<(), BufReader<TcpStream>, BigEndian> {
+    pub fn buffered() -> TypedReceiverBuilder<(), BufReader<TcpStream>> {
         TypedReceiverBuilder {
             _marker: PhantomData,
             max_size: DEFAULT_MAX_SIZE,
         }
     }
     /// Begin building a new, non-buffered channel.
-    pub fn realtime() -> TypedReceiverBuilder<(), TcpStream, BigEndian> {
+    pub fn realtime() -> TypedReceiverBuilder<(), TcpStream> {
         TypedReceiverBuilder {
             _marker: PhantomData,
             max_size: DEFAULT_MAX_SIZE,
         }
     }
 }
-impl<T, R, E> TypedReceiverBuilder<T, R, E> {
+impl<T, R> TypedReceiverBuilder<T, R> {
     /// Specify the type to send.
-    pub fn with_type<U: DeserializeOwned>(self) -> TypedReceiverBuilder<U, R, E> {
+    pub fn with_type<U: DeserializeOwned>(self) -> TypedReceiverBuilder<U, R> {
         TypedReceiverBuilder {
             _marker: PhantomData,
             max_size: self.max_size,
         }
     }
     /// Specify the underlying reader type.
-    pub fn with_reader<S: Read>(self) -> TypedReceiverBuilder<T, S, E> {
-        TypedReceiverBuilder {
-            _marker: PhantomData,
-            max_size: self.max_size,
-        }
-    }
-    /// Specify the endianness.
-    pub fn with_endianness<F: Endian>(self) -> TypedReceiverBuilder<T, R, F> {
+    pub fn with_reader<S: Read>(self) -> TypedReceiverBuilder<T, S> {
         TypedReceiverBuilder {
             _marker: PhantomData,
             max_size: self.max_size,
@@ -82,13 +73,12 @@ impl<T, R, E> TypedReceiverBuilder<T, R, E> {
         }
     }
 }
-impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
+impl<T: DeserializeOwned, R: Read> TypedReceiverBuilder<T, R> {
     /// Initialize the receiver with the current variables.
-    pub fn build(self, reader: R) -> Receiver<T, E, R> {
+    pub fn build(self, reader: R) -> Receiver<T, R> {
         Receiver {
             _marker: PhantomData,
             reader,
-            config: E::config(),
             max_size: self.max_size,
             buffer: Vec::new(),
             bytes_read: 0,
@@ -96,18 +86,17 @@ impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
         }
     }
 }
-impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream>, E> {
+impl<T: DeserializeOwned> TypedReceiverBuilder<T, BufReader<TcpStream>> {
     /// Listen for a sender, binding the listener to the specified address.
     pub fn listen_once<A: ToSocketAddrs>(
         self,
         address: A,
-    ) -> std::io::Result<Receiver<T, E, BufReader<TcpStream>>> {
+    ) -> std::io::Result<Receiver<T, BufReader<TcpStream>>> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
 
         Ok(Receiver {
-            config: E::config(),
             _marker: PhantomData,
             reader: BufReader::new(stream),
             max_size: self.max_size,
@@ -117,18 +106,17 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream
         })
     }
 }
-impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, TcpStream, E> {
+impl<T: DeserializeOwned> TypedReceiverBuilder<T, TcpStream> {
     /// Listen for a sender, binding the listener to the specified address.
     pub fn listen_once<A: ToSocketAddrs>(
         self,
         address: A,
-    ) -> std::io::Result<Receiver<T, E, TcpStream>> {
+    ) -> std::io::Result<Receiver<T, TcpStream>> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
 
         Ok(Receiver {
-            config: E::config(),
             _marker: PhantomData,
             reader: stream,
             max_size: self.max_size,
@@ -139,12 +127,12 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, TcpStream, E> {
     }
 }
 
-impl<T: DeserializeOwned, E: Endian, R: Read> ChannelRecv<T> for Receiver<T, E, R> {
+impl<T: DeserializeOwned, R: Read> ChannelRecv<T> for Receiver<T, R> {
     type Error = RecvError;
 
     fn recv(&mut self) -> Result<T, RecvError> {
         if self.bytes_to_read == 0 {
-            let length = self.reader.read_u64::<E>()? as usize;
+            let length = self.reader.read_u64::<LittleEndian>()? as usize;
             if length > self.max_size {
                 return Err(RecvError::TooLarge(length));
             }
@@ -168,7 +156,7 @@ impl<T: DeserializeOwned, E: Endian, R: Read> ChannelRecv<T> for Receiver<T, E, 
                     if self.bytes_read >= self.bytes_to_read {
                         let length = self.bytes_to_read;
                         self.bytes_to_read = 0;
-                        return Ok(self.config.deserialize(&self.buffer[0..length])?);
+                        return Ok(bincode::deserialize(&self.buffer[0..length])?);
                     }
                 }
                 Err(error) => return Err(error.into()),
