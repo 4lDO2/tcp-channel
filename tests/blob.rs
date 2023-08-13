@@ -11,10 +11,10 @@ use std::io::{BufReader, BufWriter, ErrorKind as IoErrorKind};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use rand::{rngs::SmallRng, FromEntropy, RngCore};
+use rand::{rngs::SmallRng, SeedableRng, RngCore};
 use serde::de::DeserializeOwned;
 use tcp_channel::{
-    BigEndian, ChannelRecv, ChannelSend, Receiver as TcpReceiver, ReceiverBuilder, RecvError,
+    ChannelRecv, ChannelSend, Receiver as TcpReceiver, ReceiverBuilder, RecvError,
     SenderBuilder, DEFAULT_MAX_SIZE,
 };
 
@@ -58,7 +58,7 @@ quick_error! {
 }
 
 fn pretend_blocking_read<T: DeserializeOwned, R: Read>(
-    receiver: &mut TcpReceiver<T, BigEndian, R>,
+    receiver: &mut TcpReceiver<T, R>,
 ) -> Result<T, RecvError> {
     loop {
         match receiver.recv() {
@@ -103,7 +103,6 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
 
         let mut receiver = ReceiverBuilder::buffered()
             .with_type::<Request>()
-            .with_endianness::<BigEndian>()
             .with_reader::<BufReader<SlowReader<TcpStream>>>()
             .with_max_size(max_size)
             .build(BufReader::new(SlowReader::new(
@@ -114,7 +113,6 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
 
         let mut sender = SenderBuilder::buffered()
             .with_type::<Response>()
-            .with_endianness::<BigEndian>()
             .with_writer::<BufWriter<SlowWriter<TcpStream>>>()
             .build(BufWriter::new(SlowWriter::new(stream, slow, true)));
 
@@ -138,13 +136,11 @@ fn blob(slow: bool, blocking: bool, max_size: usize) -> Result<(), Error> {
     let mut sender = SenderBuilder::realtime()
         .with_type::<Request>()
         .with_writer::<SlowWriter<TcpStream>>()
-        .with_endianness::<BigEndian>()
         .build(SlowWriter::new(stream.try_clone().unwrap(), slow, true));
 
     let mut receiver = ReceiverBuilder::buffered()
         .with_type::<Response>()
         .with_reader::<BufReader<SlowReader<TcpStream>>>()
-        .with_endianness::<BigEndian>()
         .with_max_size(max_size)
         .build(BufReader::new(SlowReader::new(stream, slow, blocking)));
 

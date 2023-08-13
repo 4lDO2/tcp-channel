@@ -12,7 +12,7 @@ use std::thread::JoinHandle;
 // Yeah, regular channels are used to tell the client when the server has started!
 use std::time::{Duration, SystemTime};
 
-use tcp_channel::{BigEndian, ChannelRecv, ChannelSend, ReceiverBuilder, SenderBuilder};
+use tcp_channel::{ChannelRecv, ChannelSend, ReceiverBuilder, SenderBuilder};
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum Request {
@@ -65,12 +65,10 @@ fn time() -> Result<(), Error> {
 
         let mut receiver = ReceiverBuilder::buffered()
             .with_type::<Request>()
-            .with_endianness::<BigEndian>()
             .build(BufReader::new(stream.try_clone()?));
 
         let mut sender = SenderBuilder::realtime()
             .with_type::<Response>()
-            .with_endianness::<BigEndian>()
             .build(stream);
 
         while let Ok(command) = receiver.recv() {
@@ -87,12 +85,10 @@ fn time() -> Result<(), Error> {
     let stream = TcpStream::connect("127.0.0.1:8888")?;
     let mut sender = SenderBuilder::realtime()
         .with_type::<Request>()
-        .with_endianness::<BigEndian>()
         .build(stream.try_clone()?);
 
     let mut receiver = ReceiverBuilder::buffered()
         .with_type::<Response>()
-        .with_endianness::<BigEndian>()
         .build(BufReader::new(stream));
 
     sender.send(&Request::RequestTime)?;
