@@ -1,8 +1,8 @@
 [package]
 name = "tcp-channel"
-version = "0.3.2"
+version = "0.4.0"
 authors = ["4lDO2 <4lDO2@protonmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "SPSC channels, working on everything that implements Read and Write"
 readme = "README.md"
 license = "MIT"
