@@ -1,12 +1,12 @@
 use std::io::{BufReader, Read};
-use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 use std::marker::PhantomData;
+use std::net::{TcpListener, TcpStream, ToSocketAddrs};
 
 use bincode::Config;
 use byteorder::ReadBytesExt;
 use serde::de::DeserializeOwned;
 
-use crate::{ChannelRecv, Endian, BigEndian, RecvError};
+use crate::{BigEndian, ChannelRecv, Endian, RecvError};
 
 pub const DEFAULT_MAX_SIZE: usize = 64 * 0x100_000;
 
@@ -98,7 +98,10 @@ impl<T: DeserializeOwned, R: Read, E: Endian> TypedReceiverBuilder<T, R, E> {
 }
 impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream>, E> {
     /// Listen for a sender, binding the listener to the specified address.
-    pub fn listen_once<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Receiver<T, E, BufReader<TcpStream>>> {
+    pub fn listen_once<A: ToSocketAddrs>(
+        self,
+        address: A,
+    ) -> std::io::Result<Receiver<T, E, BufReader<TcpStream>>> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
@@ -116,7 +119,10 @@ impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, BufReader<TcpStream
 }
 impl<T: DeserializeOwned, E: Endian> TypedReceiverBuilder<T, TcpStream, E> {
     /// Listen for a sender, binding the listener to the specified address.
-    pub fn listen_once<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Receiver<T, E, TcpStream>> {
+    pub fn listen_once<A: ToSocketAddrs>(
+        self,
+        address: A,
+    ) -> std::io::Result<Receiver<T, E, TcpStream>> {
         let listener = TcpListener::bind(address)?;
 
         let (stream, _) = listener.accept()?;
@@ -140,11 +146,12 @@ impl<T: DeserializeOwned, E: Endian, R: Read> ChannelRecv<T> for Receiver<T, E, 
         if self.bytes_to_read == 0 {
             let length = self.reader.read_u64::<E>()? as usize;
             if length > self.max_size {
-                return Err(RecvError::TooLarge(length))
+                return Err(RecvError::TooLarge(length));
             }
 
             if self.buffer.len() < length {
-                self.buffer.extend(std::iter::repeat(0).take(length - self.buffer.len()));
+                self.buffer
+                    .extend(std::iter::repeat(0).take(length - self.buffer.len()));
             }
 
             self.bytes_to_read = length;
@@ -152,18 +159,20 @@ impl<T: DeserializeOwned, E: Endian, R: Read> ChannelRecv<T> for Receiver<T, E, 
         }
 
         loop {
-            match self.reader.read(&mut self.buffer[self.bytes_read..self.bytes_to_read]) {
+            match self
+                .reader
+                .read(&mut self.buffer[self.bytes_read..self.bytes_to_read])
+            {
                 Ok(size) => {
                     self.bytes_read += size;
                     if self.bytes_read >= self.bytes_to_read {
                         let length = self.bytes_to_read;
                         self.bytes_to_read = 0;
-                        return Ok(self.config.deserialize(&self.buffer[0..length])?)
+                        return Ok(self.config.deserialize(&self.buffer[0..length])?);
                     }
-                },
+                }
                 Err(error) => return Err(error.into()),
             }
         }
-
     }
 }

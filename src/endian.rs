@@ -1,6 +1,6 @@
-pub use byteorder::{BigEndian, LittleEndian, NativeEndian};
-use byteorder::ByteOrder;
 use bincode::Config;
+use byteorder::ByteOrder;
+pub use byteorder::{BigEndian, LittleEndian, NativeEndian};
 
 pub trait Endian: ByteOrder {
     fn config() -> Config;

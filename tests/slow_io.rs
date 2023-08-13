@@ -1,6 +1,6 @@
-use std::io::{Result, ErrorKind as IoErrorKind};
 use std::io::prelude::*;
-use std::time::{Instant, Duration};
+use std::io::{ErrorKind as IoErrorKind, Result};
+use std::time::{Duration, Instant};
 
 // In milliseconds.
 const DELAY: u64 = 200;
@@ -24,10 +24,12 @@ impl<T: Write> SlowWriter<T> {
 
 fn emulate_nonblocking(last_io: &mut Option<Instant>) -> Result<()> {
     match *last_io {
-        Some(last_io_some) => if last_io_some + Duration::from_millis(DELAY) < Instant::now() {
-            *last_io = None;
-            return Err(IoErrorKind::WouldBlock.into())
-        },
+        Some(last_io_some) => {
+            if last_io_some + Duration::from_millis(DELAY) < Instant::now() {
+                *last_io = None;
+                return Err(IoErrorKind::WouldBlock.into());
+            }
+        }
         None => *last_io = Some(Instant::now()),
     }
     Ok(())

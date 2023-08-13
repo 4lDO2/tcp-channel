@@ -6,7 +6,7 @@ use bincode::Config;
 use byteorder::WriteBytesExt;
 use serde::Serialize;
 
-use crate::{ChannelSend, Endian, BigEndian, SendError};
+use crate::{BigEndian, ChannelSend, Endian, SendError};
 
 /// The sending side of a channel.
 pub struct Sender<T: Serialize, E: Endian, W: Write = BufWriter<TcpStream>> {
@@ -72,7 +72,10 @@ impl<T: Serialize, W: Write, E: Endian> TypedSenderBuilder<T, W, E> {
 }
 impl<T: Serialize, E: Endian> TypedSenderBuilder<T, BufWriter<TcpStream>, E> {
     /// Connect to a listening receiver, at a specified address.
-    pub fn connect<A: ToSocketAddrs>(self, address: A) -> std::io::Result<Sender<T, E, BufWriter<TcpStream>>> {
+    pub fn connect<A: ToSocketAddrs>(
+        self,
+        address: A,
+    ) -> std::io::Result<Sender<T, E, BufWriter<TcpStream>>> {
         let stream = TcpStream::connect(address)?;
 
         Ok(Sender {

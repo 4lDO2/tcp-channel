@@ -1,16 +1,18 @@
 extern crate tcp_channel;
-#[macro_use] extern crate quick_error;
+#[macro_use]
+extern crate quick_error;
 extern crate serde;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate serde_derive;
 
 use std::any::Any;
 use std::io::BufReader;
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 // Yeah, regular channels are used to tell the client when the server has started!
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
-use tcp_channel::{SenderBuilder, ReceiverBuilder, ChannelSend, ChannelRecv, BigEndian};
+use tcp_channel::{BigEndian, ChannelRecv, ChannelSend, ReceiverBuilder, SenderBuilder};
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 enum Request {
@@ -52,7 +54,7 @@ quick_error! {
 fn time() -> Result<(), Error> {
     // This test sets up a simple time server, enum based.
     let initial_time = SystemTime::now();
-    
+
     let (sender, receiver) = std::sync::mpsc::channel();
 
     let thread: JoinHandle<Result<(), Error>> = std::thread::spawn(move || {
@@ -75,7 +77,7 @@ fn time() -> Result<(), Error> {
             match command {
                 Request::RequestTime => sender.send(&Response::Respond(time))?,
                 Request::SetTime(new_time) => time = new_time,
-                Request::Stop => return Ok(())
+                Request::Stop => return Ok(()),
             }
         }
 
