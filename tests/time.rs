@@ -44,7 +44,7 @@ quick_error! {
         RecvErr2(err: tcp_channel::RecvError) {
             from()
         }
-        JoinErr(err: Box<Any + Send + 'static>) {
+        JoinErr(err: Box<dyn Any + Send + 'static>) {
             from()
         }
     }

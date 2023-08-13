@@ -11,11 +11,11 @@ use std::io::{BufReader, BufWriter, ErrorKind as IoErrorKind};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use rand::{rngs::SmallRng, SeedableRng, RngCore};
+use rand::{rngs::SmallRng, RngCore, SeedableRng};
 use serde::de::DeserializeOwned;
 use tcp_channel::{
-    ChannelRecv, ChannelSend, Receiver as TcpReceiver, ReceiverBuilder, RecvError,
-    SenderBuilder, DEFAULT_MAX_SIZE,
+    ChannelRecv, ChannelSend, Receiver as TcpReceiver, ReceiverBuilder, RecvError, SenderBuilder,
+    DEFAULT_MAX_SIZE,
 };
 
 // This emulates a real delayed TCP connection.
@@ -51,7 +51,7 @@ quick_error! {
         TcpRecvErr(err: tcp_channel::RecvError) {
             from()
         }
-        JoinErr(err: Box<Any + Send + 'static>) {
+        JoinErr(err: Box<dyn Any + Send + 'static>) {
             from()
         }
     }
